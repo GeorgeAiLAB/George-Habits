@@ -1,0 +1,15 @@
+{
+  "name": "George Habits",
+  "short_name": "Habits",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F8F6",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
