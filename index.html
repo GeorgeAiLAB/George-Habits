@@ -169,8 +169,55 @@ const parseDate=s=>{const[y,m,d]=s.split("-");return new Date(y,m-1,d)};
 const genId=()=>"h"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const isWide=()=>window.innerWidth>=720;
 
+// ═══ Supabase Config ═══
+const SB_URL="https://edurcwyjfsscsvdeeztv.supabase.co";
+const SB_KEY="sb_publishable_DLDiDSU6nONipUTIRbjcfQ_WVdLKfHn";
+const SB_HEADERS={"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"};
+
+// localStorage as cache
 function load(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb}}
-function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){console.error(e)}}
+function saveLocal(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){console.error(e)}}
+
+// Supabase REST
+async function sbGet(k){
+  try{
+    const r=await fetch(`${SB_URL}/rest/v1/kv_store?key=eq.${encodeURIComponent(k)}&select=value`,{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});
+    if(!r.ok)return null;
+    const d=await r.json();
+    return d.length?d[0].value:null;
+  }catch{return null}
+}
+async function sbSet(k,v){
+  try{
+    await fetch(`${SB_URL}/rest/v1/kv_store`,{method:"POST",headers:SB_HEADERS,body:JSON.stringify({key:k,value:v,updated_at:new Date().toISOString()})});
+  }catch(e){console.error("Supabase save error:",e)}
+}
+
+// Combined save: local + cloud
+function save(k,v){saveLocal(k,v);sbSet(k,v)}
+
+// Initial sync from Supabase (overwrites local if cloud has data)
+async function syncFromCloud(){
+  const keys=["ht-habits","ht-completions"];
+  let synced=false;
+  for(const k of keys){
+    const cloud=await sbGet(k);
+    if(cloud!==null){
+      saveLocal(k,cloud);
+      if(k==="ht-habits")state.habits=cloud;
+      if(k==="ht-completions")state.completions=cloud;
+      synced=true;
+    }
+  }
+  if(synced){render();showSyncBadge("✓ Sincronizado")}
+  else{showSyncBadge("Local")}
+}
+function showSyncBadge(msg){
+  let el=document.getElementById("sync-badge");
+  if(!el){el=document.createElement("div");el.id="sync-badge";el.style.cssText="position:fixed;bottom:16px;right:16px;background:#059669;color:#fff;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:inherit;z-index:999;opacity:1;transition:opacity 0.5s";document.body.appendChild(el)}
+  el.textContent=msg;el.style.opacity="1";
+  setTimeout(()=>{el.style.opacity="0"},2500);
+}
 
 function barColor(p){if(p<=0)return"rgba(0,0,0,0.06)";if(p<60)return"#DC2626";if(p<80)return"#D97706";if(p<100)return"#059669";return"#047857"}
 function heatColor(p){if(p<=0)return"rgba(0,0,0,0.03)";if(p<60)return"rgba(220,38,38,0.35)";if(p<80)return"rgba(245,158,11,0.40)";if(p<100)return"rgba(5,150,105,0.40)";return"rgba(5,120,85,0.75)"}
@@ -551,6 +598,7 @@ function saveModal(){
 
 // ═══ INIT ═══
 render();
+syncFromCloud(); // Fetch latest from Supabase
 window.addEventListener("resize",render);
 
 // ═══════════════════════════════════════════
